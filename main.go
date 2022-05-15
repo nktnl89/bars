@@ -4,11 +4,26 @@ import (
 	"bars/bars/config"
 	"bars/bars/controllers"
 	"bars/bars/database"
-	"bars/bars/helpers"
 	"context"
+	"net/http"
 
+	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
+
+const userkey = "user"
+
+var secret = []byte("secret")
+
+func AuthRequired(c *gin.Context) {
+	session := sessions.Default(c)
+	user := session.Get(userkey)
+	if user == nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	c.Next()
+}
 
 func main() {
 	conf := config.GetConfig()
@@ -32,29 +47,31 @@ func main() {
 		UnitCol:  db.Collection("Unit"),
 		Ctx:      ctx,
 	}
+	r := gin.New()
 
-	router := gin.New()
-	router.Use(gin.Logger())
+	r.Use(sessions.Sessions("mysession", sessions.NewCookieStore(secret)))
 
-	router.POST("/users/signup", controllers.SignUp(userClient))
-	router.POST("/users/login", controllers.Login(userClient))
+	r.POST("/login", controllers.Login(userClient))
+	r.POST("/signup", controllers.SignUp(userClient))
+	r.GET("/logout", controllers.Logout())
 
-	router.Use(helpers.Authentication())
+	private := r.Group("/api")
+	private.Use(AuthRequired)
+	{
+		private.POST("/units", controllers.InsertUnit(unitClient))
+		private.DELETE("/units/{id}", controllers.DeleteUnit(unitClient))
+		private.PATCH("/units/{id}", controllers.UpdateUnit(unitClient))
+		private.GET("/units/{id}", controllers.GetUnit(unitClient))
+		private.GET("/units", controllers.FindAllUnit(unitClient))
 
-	router.POST("/units", controllers.InsertUnit(unitClient))
-	router.DELETE("/units/{id}", controllers.DeleteUnit(unitClient))
-	router.PATCH("/units/{id}", controllers.UpdateUnit(unitClient))
-	router.GET("/units/{id}", controllers.GetUnit(unitClient))
-	router.GET("/units", controllers.FindAllUnit(unitClient))
+		private.POST("/groups", controllers.InsertGroup(groupClient))
+		private.DELETE("/groups/{id}", controllers.DeleteGroup(groupClient))
+		private.PATCH("/groups/{id}", controllers.UpdateGroup(groupClient))
+		private.GET("/groups/{id}", controllers.GetGroup(groupClient))
+		private.GET("/groups", controllers.FindAllGroup(groupClient))
 
-	router.POST("/groups", controllers.InsertGroup(groupClient))
-	router.DELETE("/groups/{id}", controllers.DeleteGroup(groupClient))
-	router.PATCH("/groups/{id}", controllers.UpdateGroup(groupClient))
-	router.GET("/groups/{id}", controllers.GetGroup(groupClient))
-	router.GET("/groups", controllers.FindAllGroup(groupClient))
-
-	router.GET("/groups/fetch/all", controllers.FetchAllGroup(fetchedClient))
-	router.GET("/groups/fetch/{id}", controllers.FetchGroup(fetchedClient))
-
-	router.Run(":8080")
+		private.GET("/groups/fetch/all", controllers.FetchAllGroup(fetchedClient))
+		private.GET("/groups/fetch/{id}", controllers.FetchGroup(fetchedClient))
+	}
+	r.Run(":8080")
 }

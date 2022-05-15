@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 
@@ -20,6 +21,8 @@ import (
 )
 
 var validate = validator.New()
+
+const userkey = "user"
 
 func HashPassword(password string) string {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
@@ -64,9 +67,8 @@ func SignUp(db database.UserInterface) gin.HandlerFunc {
 		user.Created_at, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		user.Updated_at, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		user.ID = primitive.NewObjectID()
-		token, refreshToken, _ := helper.GenerateAllTokens(user.Name)
+		token,  _ := helper.GenerateAllTokens(user.Name)
 		user.Token = token
-		user.Refresh_token = refreshToken
 
 		resultInsertionNumber, insertErr := db.Insert(user)
 
@@ -83,6 +85,7 @@ func SignUp(db database.UserInterface) gin.HandlerFunc {
 
 func Login(db database.UserInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		session := sessions.Default(c)
 
 		var user models.User
 		var foundUser models.User
@@ -105,7 +108,28 @@ func Login(db database.UserInterface) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, foundUser)
+		session.Set(userkey, user.Name)
+		if err := session.Save(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save session"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Successfully authenticated user"})
+	}
+}
 
+func Logout() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		session := sessions.Default(c)
+		user := session.Get(userkey)
+		if user == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session token"})
+			return
+		}
+		session.Delete(userkey)
+		if err := session.Save(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save session"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Successfully logged out"})
 	}
 }
