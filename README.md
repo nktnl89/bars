@@ -1,18 +1,32 @@
+Для запуска треубется докер
+
 docker-compose up --build
 
 127.0.0.1:8080 - сервер
 
+# Users
+POST    /singup             зарегистрировать нового пользователя, обязательными полями являются name, password
+                            пример:
+                            {
+                                "name": "admin",
+                                "password": "admin"
+                            }
+POST    /login              авторизация, аналогично передаем имя пользователя и пароль
+GET     /logout             разлогиниться
 
-# Vehicles api
-POST /units  to add new vehicle information
-GET /units/{id} to get vehicle information by id
-DELETE /units/{id} to delete vehicle information by id
-PUT /units/{id} to update vehicle information by id
+# Транспортные средства api
+POST    /api/units          добавить запись транспортного средства
+GET     /api/units/{id}     получить запись транспортного средства по id
+DELETE  /api/units/{id}     удалить запись транспортного средства по id
+PATCH   /api/units/{id}     обновить запись транспортного средства по id, в requestBody передаем транспортное средство в формате json
 
+# Группы транспортных средств api
+POST    /api/groups         добавить запись группы
+GET     /api/groups/{id}    получить запись группы по id
+DELETE  /api/groups/{id}    удалить запись группы по id
+PATCH   /api/groups/{id}    обновить запись группы по id, в requestBody передаем группу в формате json
 
-# Vehicle-groups api
-POST /groups  to add new vehicle's group information
-GET /groups/{id} to get vehicle's group by id
-DELETE /groups/{id} to delete vehicle's group information by id
-PUT /groups/{id} to update vehicle's group information by id
+# Группы транспортных среств для отображения на ui
+GET     /groups/fetch/all"  получить все группы транспортных средств с привязанными к ним транспортными средствами
+GET     /groups/fetch/{id}  получить группу транспортных средств с привязанными к ней транспортными средствами
 
