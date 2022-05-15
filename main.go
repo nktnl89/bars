@@ -2,12 +2,12 @@ package main
 
 import (
 	"bars/bars/config"
+	"bars/bars/controllers"
 	"bars/bars/database"
-	"bars/bars/handlers"
+	"bars/bars/helpers"
 	"context"
-	"net/http"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -15,32 +15,46 @@ func main() {
 	ctx := context.TODO()
 	db := database.ConnectDB(ctx, conf.Mongo)
 
-	collection := db.Collection(conf.Mongo.Collection)
 	unitClient := &database.UnitClient{
-		Col: collection,
+		Col: db.Collection("Unit"),
 		Ctx: ctx,
 	}
 	groupClient := &database.GroupClient{
-		Col: collection,
+		Col: db.Collection("Group"),
 		Ctx: ctx,
 	}
+	userClient := &database.UserClient{
+		Col: db.Collection("User"),
+		Ctx: ctx,
+	}
+	fetchedClient := &database.FetchedCollectionClient{
+		GroupCol: db.Collection("Group"),
+		UnitCol:  db.Collection("Unit"),
+		Ctx:      ctx,
+	}
 
-	r := mux.NewRouter()
+	router := gin.New()
+	router.Use(gin.Logger())
 
-	r.HandleFunc("/units", handlers.InsertUnit(unitClient)).Methods("POST")
-	r.HandleFunc("/units/{id}", handlers.DeleteUnit(unitClient)).Methods("DELETE")
-	r.HandleFunc("/units/{id}", handlers.UpdateUnit(unitClient)).Methods("PATCH")
-	r.HandleFunc("/units/{id}", handlers.GetUnit(unitClient)).Methods("GET")
-	r.HandleFunc("/units", handlers.FindAllUnit(unitClient)).Methods("GET")
+	router.POST("/users/signup", controllers.SignUp(userClient))
+	router.POST("/users/login", controllers.Login(userClient))
 
-	r.HandleFunc("/groups", handlers.InsertGroup(groupClient)).Methods("POST")
-	r.HandleFunc("/groups/{id}", handlers.DeleteGroup(groupClient)).Methods("DELETE")
-	r.HandleFunc("/groups/{id}", handlers.UpdateGroup(groupClient)).Methods("PATCH")
-	r.HandleFunc("/groups/{id}", handlers.GetGroup(groupClient)).Methods("GET")
-	r.HandleFunc("/groups", handlers.FindAllGroup(groupClient)).Methods("GET")
+	router.Use(helpers.Authentication())
 
-	r.HandleFunc("/groups/fetch/all", handlers.FetchAllGroup(groupClient)).Methods("GET")
-	r.HandleFunc("/groups/fetch/{id}", handlers.FetchGroup(groupClient)).Methods("GET")
+	router.POST("/units", controllers.InsertUnit(unitClient))
+	router.DELETE("/units/{id}", controllers.DeleteUnit(unitClient))
+	router.PATCH("/units/{id}", controllers.UpdateUnit(unitClient))
+	router.GET("/units/{id}", controllers.GetUnit(unitClient))
+	router.GET("/units", controllers.FindAllUnit(unitClient))
 
-	http.ListenAndServe(":8080", r)
+	router.POST("/groups", controllers.InsertGroup(groupClient))
+	router.DELETE("/groups/{id}", controllers.DeleteGroup(groupClient))
+	router.PATCH("/groups/{id}", controllers.UpdateGroup(groupClient))
+	router.GET("/groups/{id}", controllers.GetGroup(groupClient))
+	router.GET("/groups", controllers.FindAllGroup(groupClient))
+
+	router.GET("/groups/fetch/all", controllers.FetchAllGroup(fetchedClient))
+	router.GET("/groups/fetch/{id}", controllers.FetchGroup(fetchedClient))
+
+	router.Run(":8080")
 }

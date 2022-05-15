@@ -4,7 +4,6 @@ import (
 	"bars/bars/models"
 	"context"
 	"encoding/json"
-	"log"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -17,8 +16,6 @@ type GroupInterface interface {
 	Delete(string) (models.GroupDelete, error)
 	Get(string) (models.Group, error)
 	FindAll() ([]models.Group, error)
-	FetchGroup(string) (models.GroupFetch, error)
-	FetchAllGroups() ([]models.GroupFetch, error)
 }
 
 type GroupClient struct {
@@ -124,74 +121,4 @@ func (c *GroupClient) FindAll() ([]models.Group, error) {
 	}
 
 	return groups, nil
-}
-
-func (c *GroupClient) FetchGroup(id string) (models.GroupFetch, error) {
-	res := models.GroupFetch{}
-
-	group := models.Group{}
-	_id, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return res, err
-	}
-	err = c.Col.FindOne(c.Ctx, bson.M{"_id": _id}).Decode(&group)
-	if err != nil {
-		return res, err
-	}
-	res.Group = group
-
-	units, err := findAllUnitsByIds(c, group.UnitIds)
-	if err != nil {
-		return res, err
-	}
-	res.Units = units
-
-	return res, nil
-}
-
-func (c *GroupClient) FetchAllGroups() ([]models.GroupFetch, error) {
-	res := []models.GroupFetch{}
-	groups := []models.Group{}
-
-	cursor, err := c.Col.Find(c.Ctx, bson.M{})
-	if err != nil {
-		log.Println(cursor)
-		return res, err
-	}
-	for cursor.Next(c.Ctx) {
-		row := models.Group{}
-		cursor.Decode(&row)
-		groups = append(groups, row)
-	}
-
-	for _, g := range groups {
-		var units, err = findAllUnitsByIds(c, g.UnitIds)
-		if err != nil {
-			return res, err
-		}
-		res = append(res, models.GroupFetch{
-			Group: g,
-			Units: units,
-		})
-	}
-
-	return res, nil
-}
-
-func findAllUnitsByIds(c *GroupClient, ids []primitive.ObjectID) ([]models.Unit, error) {
-	var units = []models.Unit{}
-	if len(ids) == 0 {
-		return units, nil
-	}
-	cursor, err := c.Col.Find(c.Ctx, bson.M{"_id": bson.M{"$in": ids}})
-	if err != nil {
-		return units, err
-	}
-
-	for cursor.Next(c.Ctx) {
-		row := models.Unit{}
-		cursor.Decode(&row)
-		units = append(units, row)
-	}
-	return units, nil
 }
